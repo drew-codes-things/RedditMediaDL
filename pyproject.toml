@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reddit-downloader-v3"
+version = "1.0.0"
+description = "Download Reddit images and text via public RSS feeds."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+dependencies = ["requests", "tqdm"]
+
+[project.scripts]
+reddit-downloader = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
