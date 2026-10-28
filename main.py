@@ -32,6 +32,8 @@ HEADERS = {
 }
 MAX_THREADS = 10
 RETRY_ATTEMPTS = 5
+# Reddit's RSS listings return at most this many posts per request.
+MAX_RSS_POSTS = 100
 RETRY_BACKOFF_SECONDS = 3.0
 RSS_TIMEOUT = 45
 SCRAPE_TIMEOUT = 30
@@ -480,7 +482,7 @@ def fetch_posts(subreddit_name, limit, sort="hot"):
         sort = "hot"
     subreddit_name = normalize_subreddit_name(subreddit_name)
     try:
-        query = f"limit={min(100, max(limit, 1))}"
+        query = f"limit={min(MAX_RSS_POSTS, max(limit, 1))}"
         feed_text = first_working_rss(
             subreddit_listing_paths(subreddit_name, sort),
             query=query,
@@ -588,17 +590,23 @@ def download_file(url, filename, download_folder):
         print(f"[SKIP] Already exists: {filename}")
         return "skip"
 
+    # Download to a .part file so an interrupted download isn't later mistaken
+    # for a finished one and skipped as "Already exists".
+    part_path = file_path + ".part"
     try:
         with request_with_retry(url, stream=True, headers=HEADERS, timeout=DOWNLOAD_TIMEOUT) as response:
             response.raise_for_status()
-            with open(file_path, "wb") as f:
+            with open(part_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
+        os.replace(part_path, file_path)
         print(f"[OK]   Downloaded: {filename}")
         return True
-    except requests.RequestException as e:
+    except (requests.RequestException, OSError) as e:
         print(f"[FAIL] {filename}: {e}")
+        if os.path.exists(part_path):
+            os.remove(part_path)
         return False
 
 
@@ -747,7 +755,7 @@ def main():
     if resolve:
         print("[INFO] --resolve mode: will scrape post pages to find original images.")
     else:
-        print("[INFO] --no-resolve mode: only direct image URLs from RSS will be downloaded.")
+        print("[INFO] Only direct image URLs from RSS will be downloaded (add --resolve to scrape post pages).")
     if not use_resume:
         print("[INFO] --no-resume mode: previously-seen post IDs will not be skipped.")
 
@@ -799,6 +807,10 @@ def main():
     except ValueError:
         print("Please enter positive integers.")
         return
+
+    if count > MAX_RSS_POSTS:
+        print(f"[WARNING] Reddit's RSS only lists the latest {MAX_RSS_POSTS} posts; fetching {MAX_RSS_POSTS}.")
+        count = MAX_RSS_POSTS
 
     if raw_threads > MAX_THREADS:
         print(f"[WARNING] Clamping concurrent downloads from {raw_threads} to {MAX_THREADS}.")
