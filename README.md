@@ -77,6 +77,23 @@ The tool prompts for:
 
 ---
 
+## Discord Relay (RedditDownloaderV4)
+
+Reddit's RSS can be throttled or shut off, so this can also read from the same Discord relay [RedditDownloaderV4](https://github.com/drew-codes-things/RedditDownloaderV4) uses: its Devvit app scans a subreddit and posts `RELAY:` batches of media links to a Discord webhook, and this script reads them back with a bot token.
+
+```
+Devvit app  ->  Discord webhook  ->  relay channel  ->  RedditDownloaderV3  ->  Reddit_downloads/Media
+```
+
+1. Set up the Devvit app, webhook and bot as in RedditDownloaderV4's README (the bot needs **Message Content Intent** and Read Message History in the channel)
+2. `cp .env.example .env` and fill in `RELAY_BOT_TOKEN`, `RELAY_CHANNEL_ID`, and optionally `RELAY_WEBHOOK_ID` (the `{id}` in the webhook URL) so batches from any other webhook are ignored
+3. In Reddit, run **[starbottyyay] Fetch Media to Server** on the subreddit
+4. Run `python main.py --relay` (or answer `y` when asked) - every image posted since the last run is downloaded; video links are skipped since this tool is images only
+
+Messages typed by people or other bots are never trusted. The last message read is kept in `Reddit_downloads/relay_last_message_id.txt`, and isn't moved forward if a download failed, so failures are retried next run.
+
+---
+
 ## Output Structure
 
 ```

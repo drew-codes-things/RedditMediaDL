@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote, urlparse
 
 import requests
+from dotenv import load_dotenv
 from tqdm import tqdm
 
 import logging
@@ -32,7 +33,6 @@ HEADERS = {
 }
 MAX_THREADS = 10
 RETRY_ATTEMPTS = 5
-# Reddit's RSS listings return at most this many posts per request.
 MAX_RSS_POSTS = 100
 RETRY_BACKOFF_SECONDS = 3.0
 RSS_TIMEOUT = 45
@@ -43,15 +43,20 @@ ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp")
 
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+RELAY_BOT_TOKEN = (os.getenv("RELAY_BOT_TOKEN") or "").strip()
+RELAY_CHANNEL_ID = (os.getenv("RELAY_CHANNEL_ID") or "").strip()
+RELAY_WEBHOOK_ID = (os.getenv("RELAY_WEBHOOK_ID") or "").strip()
+RELAY_MESSAGE_PREFIX = "RELAY:"
+DISCORD_API_BASE = "https://discord.com/api/v10"
+
 
 def is_image_url(url):
     path = urlparse(url).path.lower().split("?")[0]
     return path.endswith(IMAGE_EXTS)
 
 
-
 def _backoff_wait(attempt, base=RETRY_BACKOFF_SECONDS):
-    """Exponential backoff with +-20% jitter."""
     wait = base * (2 ** attempt)
     jitter = wait * 0.2 * (random.random() * 2 - 1)
     return max(0.5, wait + jitter)
@@ -105,7 +110,6 @@ def fetch_html(url, timeout=SCRAPE_TIMEOUT):
     except Exception:
         pass
     return ""
-
 
 
 def normalize_subreddit_name(value):
@@ -171,7 +175,6 @@ def subreddit_listing_paths(subreddit_name, sort):
     return [f"/r/{encoded}/{sort}.rss", f"/r/{encoded}/{sort}/.rss"]
 
 
-
 def get_downloads_folder(content_type):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     folder = os.path.join(script_dir, "Reddit_downloads", content_type.capitalize())
@@ -187,7 +190,6 @@ def get_seen_path():
 
 
 def load_seen(subreddit_name):
-    """Return the set of post IDs already processed for this subreddit."""
     try:
         with open(get_seen_path(), "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -234,7 +236,6 @@ def dedup_urls(urls):
     return result
 
 
-
 def resolve_imgur_url(url):
     parsed = urlparse(url)
     path = parsed.path.lower()
@@ -273,7 +274,6 @@ def resolve_imgur_url(url):
 
 
 def resolve_ireddit_url(post_link):
-    """Resolve i.redd.it original images from a post page."""
     page_html = fetch_html(post_link, timeout=SCRAPE_TIMEOUT)
     if not page_html:
         return []
@@ -312,7 +312,6 @@ def resolve_url(url, post_link, resolve=True):
         return resolve_ireddit_url(url)
 
     return []
-
 
 
 def extract_media_urls_from_html(content):
@@ -432,7 +431,6 @@ def parse_reddit_feed(feed_text, subreddit_name, limit):
     return parse_reddit_rss_feed(feed_text, subreddit_name, limit)
 
 
-
 def resolve_post_media_urls(post, resolve=False):
     post_link = post.get("post_link", "")
     candidates = post.get("rss_candidates", [])
@@ -475,7 +473,6 @@ def resolve_post_media_urls(post, resolve=False):
     return direct_urls
 
 
-
 def fetch_posts(subreddit_name, limit, sort="hot"):
     valid_sorts = ("hot", "new", "top", "rising")
     if sort not in valid_sorts:
@@ -495,12 +492,7 @@ def fetch_posts(subreddit_name, limit, sort="hot"):
     return posts[:limit]
 
 
-
 def build_subreddit_candidates(query):
-    """Build a small list of candidate subreddit names from the user's query.
-    Tries the exact name first, then a simple plural/singular variant.
-    No topic-specific guessing - works for any subreddit.
-    """
     base = normalize_subreddit_name(query).lower()
     if not base:
         return []
@@ -583,15 +575,12 @@ def search_subreddits(query):
     return sorted(matches.values(), key=rank_score)[:10]
 
 
-
 def download_file(url, filename, download_folder):
     file_path = os.path.join(download_folder, filename)
     if os.path.exists(file_path):
         print(f"[SKIP] Already exists: {filename}")
         return "skip"
 
-    # Download to a .part file so an interrupted download isn't later mistaken
-    # for a finished one and skipped as "Already exists".
     part_path = file_path + ".part"
     try:
         with request_with_retry(url, stream=True, headers=HEADERS, timeout=DOWNLOAD_TIMEOUT) as response:
@@ -632,7 +621,6 @@ def save_text(post, filename, download_folder):
         return False
 
 
-
 def scrape_reddit(subreddit_name, count, num_threads, download_type, sort="hot", resolve=False, use_resume=True):
     print(f"\nFetching up to {count} posts from r/{subreddit_name} RSS (sort: {sort})...")
     posts = fetch_posts(subreddit_name, count, sort)
@@ -649,8 +637,6 @@ def scrape_reddit(subreddit_name, count, num_threads, download_type, sort="hot",
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         futures = []
-        # Track which post each future belongs to, so a failed download does not
-        # get the post marked "seen" -- it should be retried on the next run.
         future_post = {}
         attempted_posts = set()
         failed_posts = set()
@@ -695,9 +681,6 @@ def scrape_reddit(subreddit_name, count, num_threads, download_type, sort="hot",
             if queued_any:
                 attempted_posts.add(post_id)
             else:
-                # Nothing to download for this post (e.g. text/link post in media
-                # mode) -- mark it seen so it isn't re-checked on every run, but
-                # it never carries the risk of "succeeded" since nothing ran.
                 no_media_posts.add(post_id)
 
         if not futures:
@@ -732,6 +715,121 @@ def scrape_reddit(subreddit_name, count, num_threads, download_type, sort="hot",
     print(f"\nDone. {total_downloads} downloaded, {total_skipped} skipped (already existed/seen), {total_failed} failed.")
 
 
+def relay_configured():
+    return bool(RELAY_BOT_TOKEN and RELAY_CHANNEL_ID)
+
+
+def get_relay_state_path():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    folder = os.path.join(script_dir, "Reddit_downloads")
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, "relay_last_message_id.txt")
+
+
+def load_relay_last_id():
+    try:
+        with open(get_relay_state_path(), "r", encoding="utf-8") as f:
+            return f.read().strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def save_relay_last_id(message_id):
+    with open(get_relay_state_path(), "w", encoding="utf-8") as f:
+        f.write(message_id)
+
+
+def parse_relay_message(message):
+    content = message.get("content") or ""
+    if not content.startswith(RELAY_MESSAGE_PREFIX):
+        return []
+    webhook_id = message.get("webhook_id")
+    if not webhook_id or (RELAY_WEBHOOK_ID and webhook_id != RELAY_WEBHOOK_ID):
+        logger.warning("Ignoring RELAY message %s not sent by the relay webhook", message.get("id"))
+        return []
+    try:
+        items = json.loads(content[len(RELAY_MESSAGE_PREFIX):])
+    except json.JSONDecodeError:
+        logger.error("Invalid RELAY payload in message %s", message.get("id"))
+        return []
+    if not isinstance(items, list):
+        return []
+    return [item for item in items
+            if isinstance(item, dict) and isinstance(item.get("url"), str) and item.get("postId")]
+
+
+def fetch_relay_messages(after_id):
+    headers = {"Authorization": f"Bot {RELAY_BOT_TOKEN}", "User-Agent": HEADERS["User-Agent"]}
+    messages = []
+    while True:
+        params = {"limit": 100}
+        if after_id:
+            params["after"] = after_id
+        response = requests.get(f"{DISCORD_API_BASE}/channels/{RELAY_CHANNEL_ID}/messages",
+                                headers=headers, params=params, timeout=SCRAPE_TIMEOUT)
+        if response.status_code == 429:
+            time.sleep(float(response.json().get("retry_after", 1)))
+            continue
+        response.raise_for_status()
+        page = sorted(response.json(), key=lambda m: int(m["id"]))
+        if not page:
+            break
+        messages.extend(page)
+        after_id = page[-1]["id"]
+        if len(page) < 100:
+            break
+    return messages
+
+
+def download_from_relay(num_threads):
+    last_id = load_relay_last_id()
+    print("\nReading new batches from the Discord relay channel...")
+    try:
+        messages = fetch_relay_messages(last_id)
+    except requests.RequestException as e:
+        print(f"[FAIL] Could not read the relay channel: {e}")
+        return
+
+    items = [item for message in messages for item in parse_relay_message(message)]
+    images = [item for item in items if is_image_url(item["url"])]
+    print(f"{len(messages)} new message(s), {len(items)} media link(s), {len(images)} image(s).")
+    if len(images) < len(items):
+        print(f"[INFO] Skipping {len(items) - len(images)} non-image link(s) (videos need RedditDownloaderV4's relay).")
+
+    per_post = {}
+    jobs = []
+    for item in images:
+        post_id = str(item["postId"])
+        post_id = post_id[3:] if post_id.startswith("t3_") else post_id
+        per_post[post_id] = per_post.get(post_id, 0) + 1
+        ext = os.path.splitext(urlparse(item["url"]).path)[1] or ".jpg"
+        folder = get_downloads_folder("Media")
+        jobs.append((item["url"], f"{post_id}_{per_post[post_id]:03d}{ext}", folder))
+
+    failed = 0
+    downloaded = 0
+    skipped = 0
+    if jobs:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = [executor.submit(download_file, *job) for job in jobs]
+            with tqdm(total=len(futures), desc="Processing", unit="file") as pbar:
+                for future in as_completed(futures):
+                    result = future.result()
+                    if result == "skip":
+                        skipped += 1
+                    elif result:
+                        downloaded += 1
+                    else:
+                        failed += 1
+                    pbar.update(1)
+
+    if messages and not failed:
+        save_relay_last_id(messages[-1]["id"])
+    elif failed:
+        print("[INFO] Some downloads failed, so these batches will be read again next run.")
+
+    print(f"\nDone. {downloaded} downloaded, {skipped} skipped (already existed), {failed} failed.")
+
 
 def print_title():
     title = r"""
@@ -751,6 +849,22 @@ def main():
     use_resume = "--no-resume" not in sys.argv
 
     print_title()
+
+    if relay_configured() and ("--relay" in sys.argv or
+                               input("Use the Discord relay (RedditDownloaderV4's Devvit app) instead of RSS? [y/N] ")
+                               .strip().lower() == "y"):
+        try:
+            raw_threads = int(input(f"Concurrent downloads (max {MAX_THREADS}): "))
+            if raw_threads <= 0:
+                raise ValueError
+        except ValueError:
+            print("Please enter a positive integer.")
+            return
+        download_from_relay(min(raw_threads, MAX_THREADS))
+        return
+    if "--relay" in sys.argv:
+        print("Set RELAY_BOT_TOKEN and RELAY_CHANNEL_ID in .env to use the Discord relay.")
+        return
     print("[INFO] Images only mode: only .jpg / .jpeg / .png / .webp will be downloaded.")
     if resolve:
         print("[INFO] --resolve mode: will scrape post pages to find original images.")

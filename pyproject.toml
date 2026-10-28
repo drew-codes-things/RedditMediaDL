@@ -9,7 +9,7 @@ description = "Download Reddit images and text via public RSS feeds."
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
-dependencies = ["requests", "tqdm"]
+dependencies = ["requests", "tqdm", "python-dotenv"]
 
 [project.scripts]
 reddit-downloader = "main:main"
