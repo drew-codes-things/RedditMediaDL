@@ -107,7 +107,7 @@ def fetch_html(url, timeout=SCRAPE_TIMEOUT):
         resp = request_with_retry(url, timeout=timeout)
         if resp.status_code == 200:
             return resp.text
-    except Exception:
+    except requests.RequestException:
         pass
     return ""
 
@@ -261,7 +261,7 @@ def resolve_imgur_url(url):
                 r = request_with_retry(candidate, timeout=10)
                 if r.status_code == 200 and "image" in r.headers.get("Content-Type", ""):
                     return [candidate]
-            except Exception:
+            except requests.RequestException:
                 continue
         page_html = fetch_html(url)
         found = re.findall(
