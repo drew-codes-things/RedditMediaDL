@@ -48,6 +48,7 @@ RELAY_BOT_TOKEN = (os.getenv("RELAY_BOT_TOKEN") or "").strip()
 RELAY_CHANNEL_ID = (os.getenv("RELAY_CHANNEL_ID") or "").strip()
 RELAY_WEBHOOK_ID = (os.getenv("RELAY_WEBHOOK_ID") or "").strip()
 RELAY_MESSAGE_PREFIX = "RELAY:"
+DELETE_RELAY_MESSAGES = (os.getenv("DELETE_RELAY_MESSAGES") or "true").strip().lower() != "false"
 DISCORD_API_BASE = "https://discord.com/api/v10"
 
 
@@ -781,6 +782,44 @@ def fetch_relay_messages(after_id):
     return messages
 
 
+def delete_relay_message(message_id):
+    url = f"{DISCORD_API_BASE}/channels/{RELAY_CHANNEL_ID}/messages/{message_id}"
+    headers = {"Authorization": f"Bot {RELAY_BOT_TOKEN}", "User-Agent": HEADERS["User-Agent"]}
+    response = requests.delete(url, headers=headers, timeout=SCRAPE_TIMEOUT)
+    if response.status_code == 429:
+        time.sleep(float(response.json().get("retry_after", 1)))
+        response = requests.delete(url, headers=headers, timeout=SCRAPE_TIMEOUT)
+    if response.status_code in (204, 404):
+        return True
+    if response.status_code == 403:
+        print("[INFO] Can't delete used relay messages: give the bot Manage Messages in the relay channel.")
+    else:
+        print(f"[WARN] Deleting relay message {message_id} failed with HTTP {response.status_code}")
+    return False
+
+
+def fully_used_relay_messages(messages, results_by_url):
+    used = []
+    for message in messages:
+        items = parse_relay_message(message)
+        if not items:
+            continue
+        if all(is_image_url(item["url"]) and results_by_url.get(item["url"]) for item in items):
+            used.append(message["id"])
+    return used
+
+
+def delete_used_relay_messages(messages, results_by_url):
+    if not DELETE_RELAY_MESSAGES:
+        return 0
+    deleted = 0
+    for message_id in fully_used_relay_messages(messages, results_by_url):
+        if not delete_relay_message(message_id):
+            break
+        deleted += 1
+    return deleted
+
+
 def download_from_relay(num_threads):
     last_id = load_relay_last_id()
     print("\nReading new batches from the Discord relay channel...")
@@ -809,12 +848,14 @@ def download_from_relay(num_threads):
     failed = 0
     downloaded = 0
     skipped = 0
+    results_by_url = {}
     if jobs:
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            futures = [executor.submit(download_file, *job) for job in jobs]
+            futures = {executor.submit(download_file, *job): job[0] for job in jobs}
             with tqdm(total=len(futures), desc="Processing", unit="file") as pbar:
                 for future in as_completed(futures):
                     result = future.result()
+                    results_by_url[futures[future]] = bool(result)
                     if result == "skip":
                         skipped += 1
                     elif result:
@@ -828,7 +869,10 @@ def download_from_relay(num_threads):
     elif failed:
         print("[INFO] Some downloads failed, so these batches will be read again next run.")
 
+    deleted = delete_used_relay_messages(messages, results_by_url)
     print(f"\nDone. {downloaded} downloaded, {skipped} skipped (already existed), {failed} failed.")
+    if deleted:
+        print(f"Deleted {deleted} used relay message(s) from Discord.")
 
 
 def print_title():

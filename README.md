@@ -92,6 +92,8 @@ Devvit app  ->  Discord webhook  ->  relay channel  ->  RedditDownloaderV3  ->  
 
 Messages typed by people or other bots are never trusted. The last message read is kept in `Reddit_downloads/relay_last_message_id.txt`, and isn't moved forward if a download failed, so failures are retried next run.
 
+Once every image in a relay message has downloaded, that message is deleted from Discord, which keeps the channel clean. Messages that also hold videos are left alone for RedditDownloaderV4's poller, and messages with a failed download are kept for the retry. Deleting needs the bot to have **Manage Messages** in the channel; without it, messages are just left in place. Set `DELETE_RELAY_MESSAGES=false` in `.env` to keep every message.
+
 ---
 
 ## Output Structure
