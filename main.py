@@ -259,9 +259,9 @@ def resolve_imgur_url(url):
         for ext in (".jpg", ".png"):
             candidate = f"https://i.imgur.com/{img_id}{ext}"
             try:
-                r = request_with_retry(candidate, timeout=10)
-                if r.status_code == 200 and "image" in r.headers.get("Content-Type", ""):
-                    return [candidate]
+                with request_with_retry(candidate, stream=True, timeout=10) as r:
+                    if r.status_code == 200 and "image" in r.headers.get("Content-Type", ""):
+                        return [candidate]
             except requests.RequestException:
                 continue
         page_html = fetch_html(url)
