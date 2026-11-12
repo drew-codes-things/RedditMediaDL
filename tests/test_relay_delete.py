@@ -68,3 +68,13 @@ def test_network_error_while_deleting_does_not_crash_the_run(capsys):
     responses.delete(f"{MESSAGES_URL}/1", body=requests.ConnectionError("boom"))
     assert main.delete_used_relay_messages([relay_message("1", [IMAGE_A])], {IMAGE_A: True}) == 0
     assert "boom" in capsys.readouterr().out
+
+
+@responses.activate
+def test_reading_the_channel_gives_up_after_repeated_rate_limits(monkeypatch):
+    monkeypatch.setattr(main.time, "sleep", lambda seconds: None)
+    for _ in range(main.RETRY_ATTEMPTS + 5):
+        responses.get(MESSAGES_URL, json={"retry_after": 0}, status=429)
+    with pytest.raises(requests.RequestException):
+        main.fetch_relay_messages(None)
+    assert len(responses.calls) <= main.RETRY_ATTEMPTS

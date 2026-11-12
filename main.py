@@ -794,6 +794,7 @@ def parse_relay_message(message):
 def fetch_relay_messages(after_id):
     headers = {"Authorization": f"Bot {RELAY_BOT_TOKEN}", "User-Agent": HEADERS["User-Agent"]}
     messages = []
+    rate_limited = 0
     while True:
         params = {"limit": 100}
         if after_id:
@@ -801,6 +802,9 @@ def fetch_relay_messages(after_id):
         response = requests.get(f"{DISCORD_API_BASE}/channels/{RELAY_CHANNEL_ID}/messages",
                                 headers=headers, params=params, timeout=SCRAPE_TIMEOUT)
         if response.status_code == 429:
+            rate_limited += 1
+            if rate_limited >= RETRY_ATTEMPTS:
+                raise requests.RequestException(f"Discord kept rate limiting after {rate_limited} tries")
             time.sleep(float(response.json().get("retry_after", 1)))
             continue
         response.raise_for_status()
