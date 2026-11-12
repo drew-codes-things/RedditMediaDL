@@ -1,6 +1,6 @@
 <div align="center">
 
-# RedditDownloaderV3
+# RedditMediaDL
 
 **A Python Reddit image and text downloader that works entirely from RSS feeds. No API key required.**
 
@@ -13,7 +13,7 @@
 
 ## Overview
 
-RedditDownloaderV3 fetches posts from any subreddit via Reddit's public RSS/Atom feed, resolves image URLs, and downloads them in parallel using a `ThreadPoolExecutor`. No Reddit API credentials are required at any point. Only original image formats are downloaded: `.jpg`, `.jpeg`, `.png`, `.webp`. Videos, GIFs, and `.webm` files are intentionally excluded.
+RedditMediaDL fetches posts from any subreddit via Reddit's public RSS/Atom feed, resolves image URLs, and downloads them in parallel using a `ThreadPoolExecutor`. No Reddit API credentials are required at any point. Only original image formats are downloaded: `.jpg`, `.jpeg`, `.png`, `.webp`. Videos, GIFs, and `.webm` files are intentionally excluded.
 
 Posts are fetched by sort order (hot, new, top, rising). Media is saved to `Reddit_downloads/Media/` and text posts to `Reddit_downloads/Text/`, both relative to the script directory.
 
@@ -82,7 +82,7 @@ The tool prompts for:
 Reddit's RSS can be throttled or shut off, so this can also read from the same Discord relay [RedditDownloaderV4](https://github.com/drew-codes-things/RedditDownloaderV4) uses: its Devvit app scans a subreddit and posts `RELAY:` batches of media links to a Discord webhook, and this script reads them back with a bot token.
 
 ```
-Devvit app  ->  Discord webhook  ->  relay channel  ->  RedditDownloaderV3  ->  Reddit_downloads/Media
+Devvit app  ->  Discord webhook  ->  relay channel  ->  RedditMediaDL  ->  Reddit_downloads/Media
 ```
 
 1. Set up the Devvit app, webhook and bot as in RedditDownloaderV4's README (the bot needs **Message Content Intent** and Read Message History in the channel)
