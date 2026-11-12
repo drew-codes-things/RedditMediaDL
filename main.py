@@ -1,3 +1,4 @@
+import hashlib
 import html
 import json
 import os
@@ -48,6 +49,7 @@ RELAY_BOT_TOKEN = (os.getenv("RELAY_BOT_TOKEN") or "").strip()
 RELAY_CHANNEL_ID = (os.getenv("RELAY_CHANNEL_ID") or "").strip()
 RELAY_WEBHOOK_ID = (os.getenv("RELAY_WEBHOOK_ID") or "").strip()
 RELAY_MESSAGE_PREFIX = "RELAY:"
+RELAY_NAME_DIGEST_LENGTH = 12
 DELETE_RELAY_MESSAGES = (os.getenv("DELETE_RELAY_MESSAGES") or "true").strip().lower() != "false"
 DISCORD_API_BASE = "https://discord.com/api/v10"
 
@@ -365,6 +367,12 @@ def atom_link(entry):
 def safe_file_stem(value):
     cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", value or "post").strip("_")
     return cleaned[:48] or "post"
+
+
+def relay_filename(post_id, url):
+    url_digest = hashlib.sha1(url.encode("utf-8")).hexdigest()[:RELAY_NAME_DIGEST_LENGTH]
+    ext = os.path.splitext(urlparse(url).path)[1] or ".jpg"
+    return f"{post_id}_{url_digest}{ext}"
 
 
 def post_id_from_link(link, fallback):
@@ -839,15 +847,12 @@ def download_from_relay(num_threads):
     if len(images) < len(items):
         print(f"[INFO] Skipping {len(items) - len(images)} non-image link(s) (videos need RedditDownloaderV4's relay).")
 
-    per_post = {}
     jobs = []
     for item in images:
         post_id = str(item["postId"])
         post_id = safe_file_stem(post_id[3:] if post_id.startswith("t3_") else post_id)
-        per_post[post_id] = per_post.get(post_id, 0) + 1
-        ext = os.path.splitext(urlparse(item["url"]).path)[1] or ".jpg"
         folder = get_downloads_folder("Media")
-        jobs.append((item["url"], f"{post_id}_{per_post[post_id]:03d}{ext}", folder))
+        jobs.append((item["url"], relay_filename(post_id, item["url"]), folder))
 
     failed = 0
     downloaded = 0

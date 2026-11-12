@@ -6,8 +6,8 @@ import pytest
 import main
 
 
-def relay_message(post_id):
-    items = [{"url": "https://i.redd.it/a.jpg", "subreddit": "pics", "postId": post_id}]
+def relay_message(post_id, url="https://i.redd.it/a.jpg"):
+    items = [{"url": url, "subreddit": "pics", "postId": post_id}]
     return {"id": "1", "content": "RELAY:" + json.dumps(items), "webhook_id": "hook"}
 
 
@@ -36,4 +36,26 @@ def test_relay_post_id_cannot_leave_the_downloads_folder(relay_downloads, monkey
 def test_normal_relay_post_id_keeps_its_name(relay_downloads, monkeypatch):
     monkeypatch.setattr(main, "fetch_relay_messages", lambda after_id: [relay_message("t3_1abc9z")])
     main.download_from_relay(1)
-    assert [filename for filename, _ in relay_downloads] == ["1abc9z_001.jpg"]
+    (filename, _), = relay_downloads
+    assert filename.startswith("1abc9z_") and filename.endswith(".jpg")
+
+
+def relay_filenames_for(monkeypatch, relay_downloads, messages):
+    monkeypatch.setattr(main, "fetch_relay_messages", lambda after_id: messages)
+    main.download_from_relay(1)
+    names = [filename for filename, _ in relay_downloads]
+    relay_downloads.clear()
+    return names
+
+
+def test_later_run_for_the_same_post_gets_a_new_name_for_a_new_image(relay_downloads, monkeypatch):
+    first = relay_filenames_for(monkeypatch, relay_downloads, [relay_message("t3_gallery1", "https://i.redd.it/one.jpg")])
+    second = relay_filenames_for(monkeypatch, relay_downloads, [relay_message("t3_gallery1", "https://i.redd.it/two.jpg")])
+    assert first != second
+
+
+def test_the_same_image_keeps_its_name_across_runs(relay_downloads, monkeypatch):
+    message = [relay_message("t3_gallery1", "https://i.redd.it/one.jpg")]
+    assert relay_filenames_for(monkeypatch, relay_downloads, message) == relay_filenames_for(
+        monkeypatch, relay_downloads, message
+    )

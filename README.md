@@ -112,6 +112,8 @@ Text files contain title, author, score, permalink URL, and the post body.
 
 For posts with multiple images, files are named `<post_id>_001.ext`, `<post_id>_002.ext`, etc. Single-image posts use `<post_id>.ext` with no suffix.
 
+Images read from the Discord relay are named `<post_id>_<url hash>.ext`, where the hash is the first 12 characters of the image URL's SHA-1. The same image keeps its name on every run, and a new image from the same post never lands on an older file's name.
+
 ---
 
 ## Retry Behaviour
