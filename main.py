@@ -817,10 +817,14 @@ def fetch_relay_messages(after_id):
 def delete_relay_message(message_id):
     url = f"{DISCORD_API_BASE}/channels/{RELAY_CHANNEL_ID}/messages/{message_id}"
     headers = {"Authorization": f"Bot {RELAY_BOT_TOKEN}", "User-Agent": HEADERS["User-Agent"]}
-    response = requests.delete(url, headers=headers, timeout=SCRAPE_TIMEOUT)
-    if response.status_code == 429:
-        time.sleep(float(response.json().get("retry_after", 1)))
+    try:
         response = requests.delete(url, headers=headers, timeout=SCRAPE_TIMEOUT)
+        if response.status_code == 429:
+            time.sleep(float(response.json().get("retry_after", 1)))
+            response = requests.delete(url, headers=headers, timeout=SCRAPE_TIMEOUT)
+    except requests.RequestException as e:
+        print(f"[WARN] Deleting relay message {message_id} failed: {e}")
+        return False
     if response.status_code in (204, 404):
         return True
     if response.status_code == 403:

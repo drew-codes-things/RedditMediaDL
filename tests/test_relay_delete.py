@@ -1,6 +1,7 @@
 import json
 
 import pytest
+import requests
 import responses
 
 import main
@@ -60,3 +61,10 @@ def test_missing_permission_stops_quietly(capsys):
     assert main.delete_used_relay_messages(messages, {IMAGE_A: True, IMAGE_B: True}) == 0
     assert len(responses.calls) == 1
     assert "Manage Messages" in capsys.readouterr().out
+
+
+@responses.activate
+def test_network_error_while_deleting_does_not_crash_the_run(capsys):
+    responses.delete(f"{MESSAGES_URL}/1", body=requests.ConnectionError("boom"))
+    assert main.delete_used_relay_messages([relay_message("1", [IMAGE_A])], {IMAGE_A: True}) == 0
+    assert "boom" in capsys.readouterr().out
