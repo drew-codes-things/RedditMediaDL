@@ -634,13 +634,27 @@ def save_text(post, filename, download_folder):
         return False
 
 
+def seen_key(subreddit_name, download_type):
+    return f"{subreddit_name}:{download_type}"
+
+
+def no_media_seen_key(subreddit_name, download_type, resolve):
+    lookup = "resolve" if resolve else "direct"
+    return f"{subreddit_name}:{download_type}:{lookup}:nothing-found"
+
+
 def scrape_reddit(subreddit_name, count, num_threads, download_type, sort="hot", resolve=False, use_resume=True):
     print(f"\nFetching up to {count} posts from r/{subreddit_name} RSS (sort: {sort})...")
     posts = fetch_posts(subreddit_name, count, sort)
     print(f"Retrieved {len(posts)} posts.")
 
-    seen = load_seen(subreddit_name) if use_resume else set()
-    new_seen = set(seen)
+    done_key = seen_key(subreddit_name, download_type)
+    nothing_found_key = no_media_seen_key(subreddit_name, download_type, resolve)
+    done_seen = load_seen(done_key) if use_resume else set()
+    nothing_found_seen = load_seen(nothing_found_key) if use_resume else set()
+    seen = done_seen | nothing_found_seen
+    new_seen = set(done_seen)
+    new_nothing_found = set(nothing_found_seen)
     if use_resume and seen:
         print(f"[INFO] Resume on: {len(seen)} previously-seen post(s) will be skipped.")
 
@@ -719,11 +733,12 @@ def scrape_reddit(subreddit_name, count, num_threads, download_type, sort="hot",
                             failed_posts.add(post_id)
                     pbar.update(1)
 
-        new_seen |= no_media_posts
+        new_nothing_found |= no_media_posts
         new_seen |= (attempted_posts - failed_posts)
 
     if use_resume:
-        save_seen(subreddit_name, new_seen)
+        save_seen(done_key, new_seen)
+        save_seen(nothing_found_key, new_nothing_found)
 
     print(f"\nDone. {total_downloads} downloaded, {total_skipped} skipped (already existed/seen), {total_failed} failed.")
 

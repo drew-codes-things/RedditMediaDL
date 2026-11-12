@@ -61,7 +61,7 @@ To enable post-page scraping for deeper image resolution:
 python main.py --resolve
 ```
 
-Resume is on by default: each subreddit's processed post IDs are saved to `Reddit_downloads/seen_ids.json`, so re-runs skip posts already handled even if their files were moved or deleted. To ignore the saved list and reprocess everything:
+Resume is on by default: each subreddit's processed post IDs are saved to `Reddit_downloads/seen_ids.json`, so re-runs skip posts already handled even if their files were moved or deleted. The list is kept per download type (media, text, both), so a media run never hides a post from a later text run. Posts where no image was found are kept apart per `--resolve` setting, so a post skipped by a plain run is looked at again by a `--resolve` run. To ignore the saved list and reprocess everything:
 
 ```bash
 python main.py --no-resume
