@@ -931,6 +931,14 @@ def print_title():
 
 
 def main():
+    try:
+        run_interactive()
+    except EOFError:
+        print("\nInput ended before every question was answered; nothing more to do.")
+        sys.exit(1)
+
+
+def run_interactive():
     resolve = "--resolve" in sys.argv
     use_resume = "--no-resume" not in sys.argv
 
