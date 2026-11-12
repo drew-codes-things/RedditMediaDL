@@ -50,6 +50,8 @@ RELAY_CHANNEL_ID = (os.getenv("RELAY_CHANNEL_ID") or "").strip()
 RELAY_WEBHOOK_ID = (os.getenv("RELAY_WEBHOOK_ID") or "").strip()
 RELAY_MESSAGE_PREFIX = "RELAY:"
 RELAY_NAME_DIGEST_LENGTH = 12
+DOWNLOAD_GONE = "gone"
+GONE_STATUSES = (404, 410)
 DELETE_RELAY_MESSAGES = (os.getenv("DELETE_RELAY_MESSAGES") or "true").strip().lower() != "false"
 DISCORD_API_BASE = "https://discord.com/api/v10"
 
@@ -597,6 +599,9 @@ def download_file(url, filename, download_folder):
     part_path = file_path + ".part"
     try:
         with request_with_retry(url, stream=True, headers=HEADERS, timeout=DOWNLOAD_TIMEOUT) as response:
+            if response.status_code in GONE_STATUSES:
+                print(f"[GONE] {filename}: HTTP {response.status_code}, the image no longer exists")
+                return DOWNLOAD_GONE
             response.raise_for_status()
             with open(part_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
@@ -720,7 +725,7 @@ def scrape_reddit(subreddit_name, count, num_threads, download_type, sort="hot",
                         result = future.result()
                         if result == "skip":
                             total_skipped += 1
-                        elif result:
+                        elif result is True:
                             total_downloads += 1
                         else:
                             total_failed += 1
@@ -872,6 +877,7 @@ def download_from_relay(num_threads):
     failed = 0
     downloaded = 0
     skipped = 0
+    gone = 0
     results_by_url = {}
     if jobs:
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -882,6 +888,8 @@ def download_from_relay(num_threads):
                     results_by_url[futures[future]] = bool(result)
                     if result == "skip":
                         skipped += 1
+                    elif result == DOWNLOAD_GONE:
+                        gone += 1
                     elif result:
                         downloaded += 1
                     else:
@@ -895,6 +903,8 @@ def download_from_relay(num_threads):
 
     deleted = delete_used_relay_messages(messages, results_by_url)
     print(f"\nDone. {downloaded} downloaded, {skipped} skipped (already existed), {failed} failed.")
+    if gone:
+        print(f"{gone} image(s) no longer exist on the server and were passed over.")
     if deleted:
         print(f"Deleted {deleted} used relay message(s) from Discord.")
 

@@ -90,7 +90,7 @@ Devvit app  ->  Discord webhook  ->  relay channel  ->  RedditDownloaderV3  ->  
 3. In Reddit, run **[starbottyyay] Fetch Media to Server** on the subreddit
 4. Run `python main.py --relay` (or answer `y` when asked) - every image posted since the last run is downloaded; video links are skipped since this tool is images only
 
-Messages typed by people or other bots are never trusted. The last message read is kept in `Reddit_downloads/relay_last_message_id.txt`, and isn't moved forward if a download failed, so failures are retried next run.
+Messages typed by people or other bots are never trusted. The last message read is kept in `Reddit_downloads/relay_last_message_id.txt`, and isn't moved forward if a download failed, so failures are retried next run. An image the server answers with 404 or 410 has been removed and will never download, so it doesn't hold the position back: it is reported and passed over.
 
 Once every image in a relay message has downloaded, that message is deleted from Discord, which keeps the channel clean. Messages that also hold videos are left alone for RedditDownloaderV4's poller, and messages with a failed download are kept for the retry. Deleting needs the bot to have **Manage Messages** in the channel; without it, messages are just left in place. Set `DELETE_RELAY_MESSAGES=false` in `.env` to keep every message.
 
