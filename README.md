@@ -150,6 +150,13 @@ reddit-downloader
 
 Logging: set `LOG_LEVEL` (e.g. `DEBUG`) and `LOG_FILE` to also write logs to a file.
 
+## Run the tests
+
+```bash
+pip install -e ".[test]"
+python -m pytest
+```
+
 
 ## Get the Code
 
