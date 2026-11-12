@@ -362,12 +362,16 @@ def atom_link(entry):
     return links[0].get("href", "")
 
 
+def safe_file_stem(value):
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", value or "post").strip("_")
+    return cleaned[:48] or "post"
+
+
 def post_id_from_link(link, fallback):
     match = re.search(r"/comments/([^/]+)/", link or "")
     if match:
         return match.group(1)
-    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", fallback or "post").strip("_")
-    return cleaned[:48] or "post"
+    return safe_file_stem(fallback)
 
 
 def parse_reddit_atom_feed(feed_text, subreddit_name, limit):
@@ -839,7 +843,7 @@ def download_from_relay(num_threads):
     jobs = []
     for item in images:
         post_id = str(item["postId"])
-        post_id = post_id[3:] if post_id.startswith("t3_") else post_id
+        post_id = safe_file_stem(post_id[3:] if post_id.startswith("t3_") else post_id)
         per_post[post_id] = per_post.get(post_id, 0) + 1
         ext = os.path.splitext(urlparse(item["url"]).path)[1] or ".jpg"
         folder = get_downloads_folder("Media")
